@@ -1,0 +1,187 @@
+<div class="chat-container">
+  <div class="messages" #messagesEl>
+    @if (messages().length === 0 && !isLoading()) {
+      <div class="suggestions-empty">
+        <p class="suggestions-label">Questions fréquentes</p>
+        <div class="suggestions-grid">
+          @for (q of suggestions; track q) {
+            <button class="suggestion-chip" (click)="selectSuggestion(q)">{{ q }}</button>
+          }
+        </div>
+      </div>
+    }
+
+    @for (msg of messages(); track msg.id) {
+      <div class="message" [class]="msg.role">
+        <div class="message-content">
+          @if (msg.role === 'assistant') {
+            <markdown [data]="msg.content"></markdown>
+          } @else {
+            {{ msg.content }}
+          }
+          <span class="cursor" [class.visible]="msg.streaming">▋</span>
+        </div>
+
+        @if (msg.sources?.length) {
+          <div class="sources">
+            <span class="sources-label">Sources</span>
+            <ul>
+              @for (source of msg.sources; track source.source) {
+                <li>
+                  <span class="source-file">{{ source.source }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        @if (msg.lowConfidence) {
+          <div class="confidence low">Confiance faible : {{ msg.confidence | toPercent }}</div>
+        }
+
+        @if (msg.role === 'assistant' && msg.streaming === false && msg.feedbackEnabled !== false) {
+          <div class="feedback">
+            <div class="feedback-actions">
+              <span class="feedback-label">Utile ?</span>
+              <button
+                class="feedback-btn"
+                [class.active-positive]="msg.isPositive === true"
+                [class.error]="msg.feedbackError"
+                [disabled]="msg.submitting"
+                (click)="submitRating($index, true)"
+                title="Utile"
+              >
+                👍
+              </button>
+              <button
+                class="feedback-btn"
+                [class.active-negative]="msg.isPositive === false"
+                [class.error]="msg.feedbackError"
+                [disabled]="msg.submitting"
+                (click)="submitRating($index, false)"
+                title="Pas utile"
+              >
+                👎
+              </button>
+              @if (msg.feedbackError) {
+                <span class="feedback-error">{{ msg.feedbackError }}</span>
+              }
+            </div>
+            @if (msg.showComment) {
+              <div class="feedback-comment">
+                <textarea
+                  class="comment-textarea"
+                  [ngModel]="msg.comment"
+                  (ngModelChange)="updateComment($index, $event)"
+                  placeholder="Commentaire optionnel…"
+                  rows="3"
+                ></textarea>
+                <div class="comment-footer">
+                  <span
+                    class="comment-counter"
+                    [class.over-limit]="(msg.comment?.length ?? 0) > 500"
+                  >
+                    {{ msg.comment?.length ?? 0 }}/500
+                  </span>
+                  @if ((msg.comment?.length ?? 0) > 500) {
+                    <span class="feedback-error">Commentaire trop long (max 500 caractères).</span>
+                  }
+                  <button
+                    class="btn-submit-feedback"
+                    [disabled]="msg.submitting || (msg.comment?.length ?? 0) > 500"
+                    (click)="submitWithComment($index)"
+                  >
+                    Envoyer
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    @if (isLoading()) {
+      <div class="message assistant loading">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+    }
+
+    @if (error()) {
+      <div class="error-banner">{{ error() }}</div>
+    }
+  </div>
+
+  <div class="input-area">
+    <div class="composer">
+      <textarea
+        #promptInput
+        [value]="prompt()"
+        (input)="prompt.set(promptInput.value)"
+        (keydown)="onKeydown($event)"
+        placeholder="Posez votre question… (Maj+Entrée pour un saut de ligne)"
+        [disabled]="isLoading()"
+        rows="1"
+      ></textarea>
+      <div class="composer-bar">
+        <div class="composer-secondary">
+          <button
+            class="btn-ghost"
+            (click)="conversationService.toggleHistory()"
+            title="Historique"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 15 15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="7.5" cy="7.5" r="5.5" />
+              <polyline points="7.5,4.5 7.5,7.5 9.5,9" />
+            </svg>
+          </button>
+          @if (messages().length > 0 && !isLoading()) {
+            <button class="btn-ghost" (click)="clearConversation()" title="Nouvelle conversation">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 15 15"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M1.5 7.5a6 6 0 1 0 1.2-3.6" />
+                <polyline points="1.5,1.5 1.5,5.5 5.5,5.5" />
+              </svg>
+            </button>
+          }
+        </div>
+        <div class="composer-primary">
+          <span class="send-hint">⏎ envoyer</span>
+          <button class="btn-send" (click)="sendMessage()" [disabled]="!canSend()">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 15 15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="7.5" y1="12" x2="7.5" y2="3" />
+              <polyline points="4,6 7.5,3 11,6" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<app-history-panel></app-history-panel>
